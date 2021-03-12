@@ -29,6 +29,7 @@
 #include "hw/sysbus.h"
 #include "hw/boards.h"
 #include "hw/qdev-properties.h"
+#include "qemu/option.h"
 
 //plattform specific imports
 #ifdef TARGET_ARM
@@ -539,13 +540,15 @@ static void board_init(MachineState * ms)
     MIPSCPU *cpuu;
 #endif
 
-    const char *kernel_filename = ms->kernel_filename;
+    QemuOpts *machine_opts;
+    machine_opts = qemu_get_machine_opts();
+    const char *config_filename = qemu_opt_get(machine_opts, "avatar-config");
     QDict * conf = NULL;
 
     //Load configuration file
-    if (kernel_filename)
+    if (config_filename)
     {
-        conf = load_configuration(kernel_filename);
+        conf = load_configuration(config_filename);
     }
     else
     {
@@ -573,7 +576,7 @@ static void board_init(MachineState * ms)
                 init_peripheral(mapping);
                 continue;
             } else {
-                init_memory_area(mapping, kernel_filename);
+                init_memory_area(mapping, config_filename);
             }
 
         }
@@ -588,6 +591,7 @@ static void configurable_machine_class_init(ObjectClass *oc, void *data)
     mc->init = board_init;
     mc->block_default_type = IF_SCSI;
 }
+
 
 static const TypeInfo configurable_machine_type = {
     .name       =  MACHINE_TYPE_NAME("configurable"),
