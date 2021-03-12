@@ -22,9 +22,9 @@
 #define AVATAR_RMEMORY(obj) OBJECT_CHECK(AvatarRMemoryState, (obj), TYPE_AVATAR_RMEMORY)
 
 uint64_t get_current_pc(void){
-#ifdef TARGET_ARM
+#if defined(TARGET_ARM) || defined(TARGET_AARCH64)
     ARMCPU *cpu = ARM_CPU(qemu_get_cpu(0));
-    return cpu->env.regs[15];
+    return cpu->env.pc;
 #elif TARGET_MIPS
     return 0; /*  implement me */
 #endif

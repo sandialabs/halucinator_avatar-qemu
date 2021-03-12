@@ -32,7 +32,7 @@
 #include "qemu/option.h"
 
 //plattform specific imports
-#ifdef TARGET_ARM
+#if defined(TARGET_ARM) || defined(TARGET_AARCH64)
 #include "target/arm/cpu.h"
 #include "hw/arm/armv7m.h"
 #include "hw/avatar/arm_helper.h"
@@ -60,7 +60,7 @@
 #define RAM_RESIZEABLE (1 << 2)
 /* Board init.  */
 
-#ifdef TARGET_ARM
+#if defined(TARGET_ARM) || defined(TARGET_AARCH64)
 static inline void set_feature(CPUARMState *env, int feature)
 {
     env->features |= 1ULL << feature;
@@ -406,13 +406,13 @@ static void init_peripheral(QDict *device)
 }
 
 
-#ifdef TARGET_ARM
+#if defined(TARGET_ARM) || defined(TARGET_AARCH64)
 static void set_entry_point(QDict *conf, ARMCPU *cpuu)
 #elif TARGET_MIPS
 static void set_entry_point(QDict *conf, MIPSCPU *cpuu)
 #endif
 {
-#ifdef TARGET_ARM
+#if defined(TARGET_ARM) || defined(TARGET_AARCH64)
     const char *entry_field = "entry_address";
     uint32_t entry;
 
@@ -431,7 +431,7 @@ static void set_entry_point(QDict *conf, MIPSCPU *cpuu)
 
 }
 
-#ifdef TARGET_ARM
+#if defined(TARGET_ARM) || defined(TARGET_AARCH64)
 static ARMCPU *create_cpu(MachineState * ms, QDict *conf)
 {
     const char *cpu_model = ms->cpu_type;
@@ -534,7 +534,7 @@ static MIPSCPU *create_cpu(MachineState * ms, QDict *conf)
 
 static void board_init(MachineState * ms)
 {
-#ifdef TARGET_ARM
+#if defined(TARGET_ARM) || defined(TARGET_AARCH64)
     ARMCPU *cpuu;
 #elif TARGET_MIPS
     MIPSCPU *cpuu;
