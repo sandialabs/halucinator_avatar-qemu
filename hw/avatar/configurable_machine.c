@@ -197,6 +197,7 @@ static void dummy_interrupt(void *opaque, int irq, int level)
 
 static SysBusDevice *make_configurable_device(const char *qemu_name,
                                               uint64_t address,
+                                              int irq_num,
                                               QList *properties)
 {
     DeviceState *dev;
@@ -211,9 +212,15 @@ static SysBusDevice *make_configurable_device(const char *qemu_name,
 
     s = SYS_BUS_DEVICE(dev);
     sysbus_mmio_map(s, 0, address);
-    irq = qemu_allocate_irq(dummy_interrupt, dev, 1);
-    sysbus_connect_irq(s, 0, irq);
-
+    if (irq_num >= 0){
+        // may want to change to a qdev_get_gpio_in(dev, n)
+        irq = qemu_allocate_irq(dummy_interrupt, dev, 1);
+        sysbus_connect_irq(s, irq_num, irq);
+    }
+    else{
+        irq = qemu_allocate_irq(dummy_interrupt, dev, 1);
+        sysbus_connect_irq(s, 0, irq);
+    }
     return s;
 }
 
@@ -372,6 +379,7 @@ static void init_peripheral(QDict *device)
     const char * bus;
     const char * name;
     uint64_t address;
+    int irq_num =-1;
 
     QDICT_ASSERT_KEY_TYPE(device, "address", QTYPE_QNUM);
     QDICT_ASSERT_KEY_TYPE(device, "qemu_name", QTYPE_QSTRING);
@@ -396,7 +404,11 @@ static void init_peripheral(QDict *device)
             properties = qobject_to(QList, qdict_get(device, "properties"));
         }
 
-        sb = make_configurable_device(qemu_name, address, properties);
+        if (qdict_haskey(device, "irq")){
+            irq_num = qdict_get_int(device, "irq");
+        }
+        sb = make_configurable_device(qemu_name, address, irq_num, properties);
+
         qdict_put_obj(peripherals, name, (QObject *)sb);
     }
     else

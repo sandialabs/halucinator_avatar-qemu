@@ -1753,3 +1753,13 @@
 ##
 { 'command': 'query-vm-generation-id', 'returns': 'GuidInfo' }
 
+
+##
+# @pmemwrite:
+# -> { "execute": "pmemwrite",
+#      "arguments": { "pmem_addr": "100",
+#                     "data_buff": "fefe",
+#                      } }
+# <- { "return": {} }
+##
+{ 'command': 'pmemwrite', 'data': { 'pmem_addr': 'int','data_buff': 'str'} }
