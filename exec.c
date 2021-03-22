@@ -3748,11 +3748,15 @@ address_space_write_cached_slow(MemoryRegionCache *cache, hwaddr addr,
 #include "memory_ldst.inc.c"
 
 /* virtual memory access for debug (includes writing to ROM) */
+/* applied patch from https://bugs.launchpad.net/qemu/+bug/1625216
+   which enables debugger to write peripherals memory
+*/
 int cpu_memory_rw_debug(CPUState *cpu, target_ulong addr,
                         uint8_t *buf, target_ulong len, int is_write)
 {
     hwaddr phys_addr;
     target_ulong l, page;
+    bool is_memcpy_access;
 
     cpu_synchronize_state(cpu);
     while (len > 0) {
@@ -3762,6 +3766,11 @@ int cpu_memory_rw_debug(CPUState *cpu, target_ulong addr,
         page = addr & TARGET_PAGE_MASK;
         phys_addr = cpu_get_phys_page_attrs_debug(cpu, page, &attrs);
         asidx = cpu_asidx_from_attrs(cpu, attrs);
+
+        hwaddr mr_len, addr1;
+        AddressSpace * as = cpu->cpu_ases[asidx].as;
+        MemoryRegion * mr = address_space_translate(as, phys_addr, &addr1, &mr_len, is_write, attrs); 
+        is_memcpy_access = memory_region_is_ram(mr) || memory_region_is_romd(mr);
         /* if no physical page mapped, return an error */
         if (phys_addr == -1)
             return -1;
@@ -3769,12 +3778,12 @@ int cpu_memory_rw_debug(CPUState *cpu, target_ulong addr,
         if (l > len)
             l = len;
         phys_addr += (addr & ~TARGET_PAGE_MASK);
-        if (is_write) {
+        if (is_write && is_memcpy_access){
             address_space_write_rom(cpu->cpu_ases[asidx].as, phys_addr,
                                     attrs, buf, l);
         } else {
             address_space_rw(cpu->cpu_ases[asidx].as, phys_addr,
-                             attrs, buf, l, 0);
+                             attrs, buf, l, is_write);
         }
         len -= l;
         buf += l;
