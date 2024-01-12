@@ -499,14 +499,11 @@ static THISCPU *create_cpu(MachineState * ms, QDict *conf)
     THISCPU *cpuu = NULL;
     CPUState *env = NULL;
 
-#if !defined(TARGET_AVR)
+#if !( defined(TARGET_AVR) || defined(TARGET_PPC))
     Object *cpuobj = NULL;
+    ObjectClass *cpu_oc;
 #endif  /* !TARGET_AVR */
 
-#if defined(TARGET_ARM) || defined(TARGET_I386) || defined(TARGET_MIPS) || defined(TARGET_AARCH64)
-    Object *cpuobj;
-    ObjectClass *cpu_oc;
-#endif  /* TARGET_ARM || TARGET_I386 || TARGET_MIPS */
 
 #if defined(TARGET_ARM) && !defined(TARGET_AARCH64)
     DeviceState *dstate; //generic device if CPU can be initiliazed via qdev-API

@@ -26,7 +26,7 @@ uint64_t get_current_pc(void)
 {
 #if defined(TARGET_ARM) || defined(TARGET_AARCH64)
     ARMCPU *cpu = ARM_CPU(qemu_get_cpu(0));
-    return cpu->env.pc
+    return cpu->env.pc;
 
 #elif defined(TARGET_AVR)
     AVRCPU *cpu = AVR_CPU(qemu_get_cpu(0));
