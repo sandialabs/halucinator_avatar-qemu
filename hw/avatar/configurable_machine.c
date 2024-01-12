@@ -28,11 +28,14 @@
 #include "qemu/error-report.h"
 #include "sysemu/sysemu.h"
 #include "exec/address-spaces.h"
+#include "exec/hwaddr.h"
 #include "hw/hw.h"
 #include "hw/irq.h"
 #include "hw/sysbus.h"
 #include "hw/boards.h"
 #include "hw/qdev-properties.h"
+#include "qemu/option.h"
+#include "hw/qdev-core.h"
 
 /* platform specific imports */
 #ifdef TARGET_ARM
@@ -196,6 +199,12 @@ static void set_properties(DeviceState *dev, QList *properties)
             QObject *pr = qdict_get(peripherals, value);
             qdev_prop_set_chr(dev, name, (void *) pr);
         }
+        else if(!strcmp(type, "bool"))
+        {
+            QDICT_ASSERT_KEY_TYPE(property, "value", QTYPE_QNUM);
+            uint32_t value = qdict_get_int(property, "value");
+            qdev_prop_set_bit(dev, name, value);
+        }
     }
 }
 
@@ -204,6 +213,7 @@ static void dummy_interrupt(void *opaque, int irq, int level)
 
 static SysBusDevice *make_configurable_device(const char *qemu_name,
                                               uint64_t address,
+                                              int irq_num,
                                               QList *properties)
 {
     DeviceState *dev;
@@ -215,9 +225,9 @@ static SysBusDevice *make_configurable_device(const char *qemu_name,
     /* replace the result of: dev = qdev_create(NULL, qemu_name); */
 
     dev = qdev_new(qemu_name);
-    
-    /* this is a sysbus device. 
-     * QEMU no longer attaches devices to this automatically; 
+
+    /* this is a sysbus device.
+     * QEMU no longer attaches devices to this automatically;
      * we will need to give it a helping hand. */
     //qdev_set_parent_bus(dev, sysbus);
     //dev->realized = true;
@@ -227,8 +237,15 @@ static SysBusDevice *make_configurable_device(const char *qemu_name,
 
     s = SYS_BUS_DEVICE(dev);
     sysbus_mmio_map(s, 0, address);
-    irq = qemu_allocate_irq(dummy_interrupt, dev, 1);
-    sysbus_connect_irq(s, 0, irq);
+    if (irq_num >= 0) {
+        // may want to change to a qdev_get_gpio_in(dev, n)
+        irq = qemu_allocate_irq(dummy_interrupt, dev, 1);
+        sysbus_connect_irq(s, irq_num, irq);
+    }
+    else {
+        irq = qemu_allocate_irq(dummy_interrupt, dev, 1);
+        sysbus_connect_irq(s, 0, irq);
+    }
 
     return s;
 }
@@ -403,6 +420,7 @@ static void init_peripheral(QDict *device)
     const char * bus;
     const char * name;
     uint64_t address;
+    int irq_num = -1;
 
     QDICT_ASSERT_KEY_TYPE(device, "address", QTYPE_QNUM);
     QDICT_ASSERT_KEY_TYPE(device, "qemu_name", QTYPE_QSTRING);
@@ -414,7 +432,7 @@ static void init_peripheral(QDict *device)
     address = qdict_get_int(device, "address");
     name = qdict_get_str(device, "name");
 
-    printf("Configurable: Adding peripheral[%s] region %s at address 0x%" PRIx64 "\n", 
+    printf("Configurable: Adding peripheral[%s] region %s at address 0x%" PRIx64 "\n",
             qemu_name, name, address);
     if (strcmp(bus, "sysbus") == 0)
     {
@@ -427,7 +445,7 @@ static void init_peripheral(QDict *device)
             properties = qobject_to(QList, qdict_get(device, "properties"));
         }
 
-        sb = make_configurable_device(qemu_name, address, properties);
+        sb = make_configurable_device(qemu_name, address, irq_num, properties);
         qdict_put_obj(peripherals, name, (QObject *)sb);
     }
     else
@@ -449,7 +467,7 @@ void avatar_cm_set_entry_point(QDict *conf, THISCPU *cpuu)
     QDICT_ASSERT_KEY_TYPE(conf, entry_field, QTYPE_QNUM);
     entry = qdict_get_int(conf, entry_field);
 
-#ifdef TARGET_ARM
+#if defined(TARGET_ARM) || defined(TARGET_AARCH64)
     cpuu->env.regs[15] = entry & (~1);
     cpuu->env.thumb = (entry & 1) == 1 ? 1 : 0;
 
@@ -461,8 +479,7 @@ void avatar_cm_set_entry_point(QDict *conf, THISCPU *cpuu)
     cpuu->env.active_tc.PC = entry;
 
 #elif defined(TARGET_PPC)
-    //Not implemented yet
-    printf("Not yet implemented- can't start execution at 0x%x\n", entry);
+    cpuu->env.nip = entry;
 
 #elif defined(TARGET_AVR)
 
@@ -486,7 +503,8 @@ static THISCPU *create_cpu(MachineState * ms, QDict *conf)
     Object *cpuobj = NULL;
 #endif  /* !TARGET_AVR */
 
-#if defined(TARGET_ARM) || defined(TARGET_I386) || defined(TARGET_MIPS)
+#if defined(TARGET_ARM) || defined(TARGET_I386) || defined(TARGET_MIPS) || defined(TARGET_AARCH64)
+    Object *cpuobj;
     ObjectClass *cpu_oc;
 #endif  /* TARGET_ARM || TARGET_I386 || TARGET_MIPS */
 
@@ -520,12 +538,12 @@ static THISCPU *create_cpu(MachineState * ms, QDict *conf)
         if (qdict_haskey(conf, "num_irq")) {
             num_irq = qdict_get_int(conf, "num_irq");
             g_assert(num_irq);
-        } 
+        }
 
         dstate = qdev_new("armv7m");
         qdev_prop_set_uint32(dstate, "num-irq", num_irq);
         qdev_prop_set_string(dstate, "cpu-type", ARM_CPU_TYPE_NAME("cortex-m3"));
-        object_property_set_link(OBJECT(dstate), "memory", 
+        object_property_set_link(OBJECT(dstate), "memory",
         OBJECT(get_system_memory()), &error_abort);
         qdev_realize_and_unref(dstate, sysbus, NULL);
 
@@ -579,8 +597,16 @@ static THISCPU *create_cpu(MachineState * ms, QDict *conf)
     }
 
 #elif defined(TARGET_PPC)
-    cpuobj = object_new(cpu_type);
-    cpuu = POWERPC_CPU(cpuobj);
+    // cpuobj = object_new(cpu_type);
+    cpuu = POWERPC_CPU(cpu_create(cpu_type));
+
+    if (cpuu->env.flags & POWERPC_FLAG_RTC_CLK) {
+        /* POWER / PowerPC 601 RTC clock frequency is 7.8125 MHz */
+        cpu_ppc_tb_init(&(cpuu->env), 7812500UL);
+    } else {
+        /* Set time-base frequency to 100 Mhz */
+        cpu_ppc_tb_init(&(cpuu->env), 100UL * 1000UL * 1000UL);
+    }
 #endif
 
 
@@ -620,17 +646,65 @@ static THISCPU *create_cpu(MachineState * ms, QDict *conf)
 }
 
 
+static void map_irqs(QDict *dev_dict,  QDict * periphs)
+{
+    const char * irq_parent;
+    int irq_num;
+    int dev_irq_num = 0;
+    const char * irq_name;
+    SysBusDevice * sb_dev;
+    DeviceState * irq_ctrl;
+
+    if (qdict_haskey(dev_dict, "irq")){
+        printf("Adding IRQ\n");
+        QDICT_ASSERT_KEY_TYPE(dev_dict, "name", QTYPE_QSTRING);
+        printf("Found device with name %s\n", qdict_get_str(dev_dict, "name"));
+        // Get this device
+        sb_dev = SYS_BUS_DEVICE(qdict_get(periphs, qdict_get_str(dev_dict, "name")));
+        QList * irq_entries = qdict_get_qlist(dev_dict, "irq");
+        QListEntry * e;
+        //Find devices this devices should connect its IRQ lines to
+        QLIST_FOREACH_ENTRY(irq_entries, e){
+            QDict * d = (QDict *)e->value;
+            if (qdict_haskey(d, "dev")){
+                QDICT_ASSERT_KEY_TYPE(d, "dev", QTYPE_QSTRING);
+                irq_parent = qdict_get_str(d, "dev");
+                printf("Dev is %s\n", irq_parent);
+                irq_num = qdict_get_int(d, "irq_num");
+                printf("Irq num is %s\n", irq_parent);
+                irq_ctrl = DEVICE(qdict_get(periphs, irq_parent));
+                printf("Irq ctls is %p\n", irq_ctrl);
+                if (qdict_haskey(d, "irq_name")){
+                    irq_name = qdict_get_str(d, "irq_name");
+                    printf("Trying to connect to %s\n",irq_name);
+                    sysbus_connect_irq(sb_dev, dev_irq_num,
+                                qdev_get_gpio_in_named(irq_ctrl, irq_name, irq_num));
+                }else{
+                    printf("Trying to connect by num %i\n",irq_num);
+                    sysbus_connect_irq(sb_dev, dev_irq_num,
+                                   qdev_get_gpio_in(irq_ctrl, irq_num));
+
+                }
+            }
+            ++dev_irq_num;
+        }
+    }else{
+        printf ("No IRQ to map\n");
+    }
+}
+
+
 static void board_init(MachineState * ms)
 {
     THISCPU *cpuu;
 
-    const char *kernel_filename = ms->kernel_filename;
+    const char *config_filename = current_machine->avatar_config;
     QDict * conf = NULL;
 
     //Load configuration file
-    if (kernel_filename)
+    if (config_filename)
     {
-        conf = load_configuration(kernel_filename);
+        conf = load_configuration(config_filename);
     }
     else
     {
@@ -639,6 +713,9 @@ static void board_init(MachineState * ms)
 
     cpuu = create_cpu(ms, conf);
     avatar_cm_set_entry_point(conf, cpuu);
+
+    peripherals = qdict_new();
+    qdict_put_obj(peripherals, "cpu", (QObject *)cpuu);
 
     if (qdict_haskey(conf, "memory_mapping"))
     {
@@ -658,10 +735,19 @@ static void board_init(MachineState * ms)
                 init_peripheral(mapping);
                 continue;
             } else {
-                init_memory_area(mapping, kernel_filename);
+                init_memory_area(mapping, config_filename);
             }
 
         }
+
+        QLIST_FOREACH_ENTRY(memories, entry)
+        {
+            printf("Checking if need to map irqs\n");
+            g_assert(qobject_type(entry->value) == QTYPE_QDICT);
+            QDict *mapping = qobject_to(QDict, entry->value);
+            map_irqs(mapping, peripherals);
+        }
+
     }
 }
 

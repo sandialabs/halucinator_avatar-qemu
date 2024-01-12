@@ -12,7 +12,7 @@
 #include "hw/avatar/avatar_posix.h"
 #include "hw/avatar/remote_memory.h"
 
-#if defined(TARGET_ARM)
+#if defined(TARGET_ARM) || defined(TARGET_AARCH64)
 #include "target/arm/cpu.h"
 #elif defined(TARGET_AVR)
 #include "target/avr/cpu.h"
@@ -24,9 +24,9 @@
 
 uint64_t get_current_pc(void)
 {
-#if defined(TARGET_ARM)
+#if defined(TARGET_ARM) || defined(TARGET_AARCH64)
     ARMCPU *cpu = ARM_CPU(qemu_get_cpu(0));
-    return cpu->env.regs[15]; /* PC register is register 15 */
+    return cpu->env.pc
 
 #elif defined(TARGET_AVR)
     AVRCPU *cpu = AVR_CPU(qemu_get_cpu(0));
@@ -46,12 +46,12 @@ static uint64_t avatar_rmemory_read(void *opaque, hwaddr offset,
     memset(&resp, 0, sizeof(resp));
     AvatarRMemoryState *s = (AvatarRMemoryState *) opaque;
     uint64_t pc = get_current_pc();
-    
+
 
     MemoryForwardReq request = {s->request_id++, pc, s->address+offset, 0, size, AVATAR_READ};
 
     qemu_avatar_mq_send(s->tx_queue, &request, sizeof(request));
-    
+
     ret = qemu_avatar_mq_receive(s->rx_queue, &resp, sizeof(resp));
     if(!resp.success || (resp.id != request.id)){
 
@@ -73,7 +73,7 @@ static void avatar_rmemory_write(void *opaque, hwaddr offset,
 
     AvatarRMemoryState *s = (AvatarRMemoryState *) opaque;
     uint64_t pc = get_current_pc();
-    
+
     MemoryForwardReq request = {s->request_id++, pc, s->address+offset, value, size, AVATAR_WRITE};
 
     qemu_avatar_mq_send(s->tx_queue, &request, sizeof(request));

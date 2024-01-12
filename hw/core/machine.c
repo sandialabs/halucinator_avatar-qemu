@@ -265,6 +265,21 @@ static void machine_set_kernel(Object *obj, const char *value, Error **errp)
     ms->kernel_filename = g_strdup(value);
 }
 
+static char *machine_get_avatar_config(Object *obj, Error **errp)
+{
+    MachineState *ms = MACHINE(obj);
+
+    return g_strdup(ms->avatar_config);
+}
+
+static void machine_set_avatar_config(Object *obj, const char *value, Error **errp)
+{
+    MachineState *ms = MACHINE(obj);
+
+    g_free(ms->avatar_config);
+    ms->avatar_config = g_strdup(value);
+}
+
 static char *machine_get_initrd(Object *obj, Error **errp)
 {
     MachineState *ms = MACHINE(obj);
@@ -781,6 +796,11 @@ static void machine_class_init(ObjectClass *oc, void *data)
         machine_get_kernel, machine_set_kernel);
     object_class_property_set_description(oc, "kernel",
         "Linux kernel image file");
+
+    object_class_property_add_str(oc, "avatar-config",
+        machine_get_avatar_config, machine_set_avatar_config);
+    object_class_property_set_description(oc, "avatar-config",
+        "Avatar Config File");
 
     object_class_property_add_str(oc, "initrd",
         machine_get_initrd, machine_set_initrd);

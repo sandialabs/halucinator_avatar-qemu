@@ -3421,6 +3421,7 @@ int cpu_memory_rw_debug(CPUState *cpu, target_ulong addr,
 {
     hwaddr phys_addr;
     target_ulong l, page;
+    bool is_memcpy_access;
     uint8_t *buf = ptr;
 
     cpu_synchronize_state(cpu);
@@ -3432,6 +3433,12 @@ int cpu_memory_rw_debug(CPUState *cpu, target_ulong addr,
         page = addr & TARGET_PAGE_MASK;
         phys_addr = cpu_get_phys_page_attrs_debug(cpu, page, &attrs);
         asidx = cpu_asidx_from_attrs(cpu, attrs);
+
+        hwaddr mr_len, addr1;
+        AddressSpace * as = cpu->cpu_ases[asidx].as;
+        MemoryRegion * mr = address_space_translate(as, phys_addr, &addr1, &mr_len, is_write, attrs);
+        is_memcpy_access = memory_region_is_ram(mr) || memory_region_is_romd(mr);
+
         /* if no physical page mapped, return an error */
         if (phys_addr == -1)
             return -1;
@@ -3449,8 +3456,10 @@ int cpu_memory_rw_debug(CPUState *cpu, target_ulong addr,
                                           attrs, buf, l);
             }
         } else {
-            res = address_space_read(cpu->cpu_ases[asidx].as, phys_addr,
-                                     attrs, buf, l);
+            // res = address_space_read(cpu->cpu_ases[asidx].as, phys_addr,
+            //                          attrs, buf, l);
+            res = address_space_rw(cpu->cpu_ases[asidx].as, phys_addr,
+                                     attrs, buf, l, is_write);
         }
         if (res != MEMTX_OK) {
             return -1;

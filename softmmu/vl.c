@@ -2952,6 +2952,9 @@ void qemu_init(int argc, char **argv, char **envp)
             case QEMU_OPTION_kernel:
                 qdict_put_str(machine_opts_dict, "kernel", optarg);
                 break;
+            case QEMU_OPTION_avatar_config:
+                qdict_put_str(machine_opts_dict, "avatar-config", optarg);
+                break;
             case QEMU_OPTION_initrd:
                 qdict_put_str(machine_opts_dict, "initrd", optarg);
                 break;

@@ -349,6 +349,7 @@ struct MachineState {
     const char *boot_once;
     char *kernel_filename;
     char *kernel_cmdline;
+    char *avatar_config;
     char *initrd_filename;
     const char *cpu_type;
     AccelState *accelerator;

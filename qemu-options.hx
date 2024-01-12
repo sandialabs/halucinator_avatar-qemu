@@ -3607,6 +3607,13 @@ SRST
     or in multiboot format.
 ERST
 
+DEF("avatar-config", HAS_ARG, QEMU_OPTION_avatar_config, \
+    "-avatar-config config used by configurable machine\n", QEMU_ARCH_ALL)
+SRST
+``-avatar-config``
+    Use AVATARCONFIG as config file for configurable machine.
+ERST
+
 DEF("append", HAS_ARG, QEMU_OPTION_append, \
     "-append cmdline use 'cmdline' as kernel command line\n", QEMU_ARCH_ALL)
 SRST
