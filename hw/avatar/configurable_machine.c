@@ -716,7 +716,6 @@ static void board_init(MachineState * ms)
 
     if (qdict_haskey(conf, "memory_mapping"))
     {
-        peripherals = qdict_new();
         QListEntry * entry;
         QList * memories = qobject_to(QList, qdict_get(conf, "memory_mapping"));
         g_assert(memories);
